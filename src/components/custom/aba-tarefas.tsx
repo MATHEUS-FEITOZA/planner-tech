@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Plus, Check, Calendar, ChevronRight, Circle, CheckCircle2, Trash2, Clock, Bell, CalendarPlus, ChevronLeft } from 'lucide-react';
+import { Plus, Check, Calendar, ChevronRight, Circle, CheckCircle2, Trash2, Clock, Bell, CalendarPlus, ChevronLeft, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tarefa, PrioridadeTarefa } from '@/lib/types';
@@ -60,6 +60,7 @@ export function AbaTarefas({ corDestaque }: AbaTarefasProps) {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
   const [mostrarDataCustomizada, setMostrarDataCustomizada] = useState(false);
+  const [errosCampos, setErrosCampos] = useState<Record<string, string>>({});
   
   // Formulário de nova tarefa
   const [formTarefa, setFormTarefa] = useState({
@@ -109,8 +110,25 @@ export function AbaTarefas({ corDestaque }: AbaTarefasProps) {
     return () => clearInterval(intervalo);
   }, [tarefas]);
 
+  const validarCampos = (): boolean => {
+    const erros: Record<string, string> = {};
+
+    if (!formTarefa.titulo.trim()) {
+      erros.titulo = 'Título é obrigatório';
+    }
+
+    if (formTarefa.comHorario && !formTarefa.horario) {
+      erros.horario = 'Selecione um horário';
+    }
+
+    setErrosCampos(erros);
+    return Object.keys(erros).length === 0;
+  };
+
   const adicionarTarefa = () => {
-    if (!formTarefa.titulo.trim()) return;
+    if (!validarCampos()) {
+      return;
+    }
 
     let dataFinal = dataSelecionada;
     
@@ -137,6 +155,7 @@ export function AbaTarefas({ corDestaque }: AbaTarefasProps) {
       alertaMinutos: 15,
       dataCustomizada: '',
     });
+    setErrosCampos({});
     setMostrarFormulario(false);
     setMostrarDataCustomizada(false);
   };
@@ -292,7 +311,7 @@ export function AbaTarefas({ corDestaque }: AbaTarefasProps) {
             >
               <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
             </button>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white capitalize">
               {format(mesAtual, 'MMMM yyyy', { locale: ptBR })}
             </h3>
             <button
@@ -413,12 +432,39 @@ export function AbaTarefas({ corDestaque }: AbaTarefasProps) {
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-4 transition-colors duration-300">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Nova Tarefa</h3>
           
-          <Input
-            value={formTarefa.titulo}
-            onChange={(e) => setFormTarefa({ ...formTarefa, titulo: e.target.value })}
-            placeholder="Título da tarefa"
-            className="bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
-          />
+          {/* Alerta de validação */}
+          {Object.keys(errosCampos).length > 0 && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-red-600 dark:text-red-400">
+                <p className="font-medium mb-1">Preencha os campos obrigatórios:</p>
+                <ul className="list-disc list-inside">
+                  {Object.values(errosCampos).map((erro, index) => (
+                    <li key={index}>{erro}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="text-gray-600 dark:text-gray-400 text-sm mb-1 block">
+              Título <span className="text-red-500">*</span>
+            </label>
+            <Input
+              value={formTarefa.titulo}
+              onChange={(e) => {
+                setFormTarefa({ ...formTarefa, titulo: e.target.value });
+                if (errosCampos.titulo) {
+                  setErrosCampos({ ...errosCampos, titulo: '' });
+                }
+              }}
+              placeholder="Título da tarefa"
+              className={`bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 ${
+                errosCampos.titulo ? 'border-red-500' : ''
+              }`}
+            />
+          </div>
 
           {/* Toggle para horário */}
           <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600">
@@ -430,9 +476,9 @@ export function AbaTarefas({ corDestaque }: AbaTarefasProps) {
               className="w-4 h-4 rounded"
               style={{ accentColor: corDestaque }}
             />
-            <label htmlFor="comHorario" className="text-gray-700 dark:text-gray-300 text-sm flex items-center gap-2 cursor-pointer">
+            <label htmlFor="comHorario" className="text-gray-700 dark:text-gray-300 text-sm flex items-center gap-2 cursor-pointer flex-1">
               <Clock className="w-4 h-4" style={{ color: corDestaque }} />
-              Definir horário
+              Definir horário <span className="text-xs text-gray-500 dark:text-gray-400">(opcional)</span>
             </label>
           </div>
 
@@ -440,11 +486,20 @@ export function AbaTarefas({ corDestaque }: AbaTarefasProps) {
           {formTarefa.comHorario && (
             <div className="space-y-3 pl-4 border-l-2" style={{ borderColor: corDestaque }}>
               <div>
-                <label className="text-gray-600 dark:text-gray-400 text-xs mb-1 block">Horário</label>
+                <label className="text-gray-600 dark:text-gray-400 text-xs mb-1 block">
+                  Horário <span className="text-red-500">*</span>
+                </label>
                 <select
                   value={formTarefa.horario}
-                  onChange={(e) => setFormTarefa({ ...formTarefa, horario: e.target.value })}
-                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm"
+                  onChange={(e) => {
+                    setFormTarefa({ ...formTarefa, horario: e.target.value });
+                    if (errosCampos.horario) {
+                      setErrosCampos({ ...errosCampos, horario: '' });
+                    }
+                  }}
+                  className={`w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm ${
+                    errosCampos.horario ? 'border-red-500' : ''
+                  }`}
                 >
                   <option value="">Selecione um horário</option>
                   {HORARIOS_DISPONIVEIS.map(horario => (
@@ -485,9 +540,9 @@ export function AbaTarefas({ corDestaque }: AbaTarefasProps) {
               className="w-4 h-4 rounded"
               style={{ accentColor: corDestaque }}
             />
-            <label htmlFor="dataCustomizada" className="text-gray-700 dark:text-gray-300 text-sm flex items-center gap-2 cursor-pointer">
+            <label htmlFor="dataCustomizada" className="text-gray-700 dark:text-gray-300 text-sm flex items-center gap-2 cursor-pointer flex-1">
               <CalendarPlus className="w-4 h-4" style={{ color: corDestaque }} />
-              Escolher data específica
+              Escolher data específica <span className="text-xs text-gray-500 dark:text-gray-400">(opcional)</span>
             </label>
           </div>
 
@@ -517,6 +572,7 @@ export function AbaTarefas({ corDestaque }: AbaTarefasProps) {
               onClick={() => {
                 setMostrarFormulario(false);
                 setMostrarDataCustomizada(false);
+                setErrosCampos({});
                 setFormTarefa({
                   titulo: '',
                   horario: '',

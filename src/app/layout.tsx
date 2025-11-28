@@ -17,8 +17,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Criado com a Lasy",
-  description: "Projeto criado com Lasy AI",
+  title: "PlannerCell - Organize sua vida",
+  description: "Gerencie suas tarefas e finanças em um só lugar. Planejamento inteligente para sua rotina.",
+  keywords: "planejador, tarefas, finanças, organização, produtividade",
+  authors: [{ name: "PlannerCell" }],
+  openGraph: {
+    title: "PlannerCell - Organize sua vida",
+    description: "Gerencie suas tarefas e finanças em um só lugar",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

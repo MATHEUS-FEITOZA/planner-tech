@@ -51,12 +51,13 @@ export function AbaFinancas({ corDestaque }: AbaFinancasProps) {
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todas');
   const [mostrarRelatorio, setMostrarRelatorio] = useState(false);
   const [mostrarHistorico, setMostrarHistorico] = useState(false);
+  const [errosCampos, setErrosCampos] = useState<Record<string, string>>({});
   
   const [formTransacao, setFormTransacao] = useState({
     categoria: '',
     valor: '',
     descricao: '',
-    data: format(new Date(), 'yyyy-MM-dd'),
+    mesAno: mesAnoAtual,
   });
 
   const categoriasReceita: CategoriaReceita[] = ['Salário', 'Freelance', 'Investimentos', 'Outros'];
@@ -157,11 +158,37 @@ export function AbaFinancas({ corDestaque }: AbaFinancasProps) {
     });
   }, [transacoes, mesAnoAtual]);
 
-  const adicionarTransacao = () => {
-    if (!formTransacao.categoria || !formTransacao.valor || !formTransacao.descricao) return;
+  const validarCampos = (): boolean => {
+    const erros: Record<string, string> = {};
 
-    const dataTransacao = new Date(formTransacao.data);
-    const mesAnoTransacao = format(dataTransacao, 'yyyy-MM');
+    if (!formTransacao.categoria) {
+      erros.categoria = 'Categoria é obrigatória';
+    }
+
+    if (!formTransacao.valor || parseFloat(formTransacao.valor) <= 0) {
+      erros.valor = 'Valor deve ser maior que zero';
+    }
+
+    if (!formTransacao.descricao.trim()) {
+      erros.descricao = 'Descrição é obrigatória';
+    }
+
+    if (!formTransacao.mesAno) {
+      erros.mesAno = 'Mês é obrigatório';
+    }
+
+    setErrosCampos(erros);
+    return Object.keys(erros).length === 0;
+  };
+
+  const adicionarTransacao = () => {
+    if (!validarCampos()) {
+      return;
+    }
+
+    const mesAnoTransacao = formTransacao.mesAno;
+    const [ano, mes] = mesAnoTransacao.split('-').map(Number);
+    const dataTransacao = new Date(ano, mes - 1, 1);
 
     const novaTransacao: Transacao = {
       id: Date.now().toString(),
@@ -243,8 +270,9 @@ export function AbaFinancas({ corDestaque }: AbaFinancasProps) {
       categoria: '',
       valor: '',
       descricao: '',
-      data: format(new Date(), 'yyyy-MM-dd'),
+      mesAno: mesAnoAtual,
     });
+    setErrosCampos({});
     setMostrarFormulario(false);
   };
 
@@ -306,11 +334,13 @@ export function AbaFinancas({ corDestaque }: AbaFinancasProps) {
       const proximoMes = addMonths(mesAtual, 1);
       const agora = new Date();
       
-      // Não permitir navegar para meses futuros
-      if (proximoMes <= agora) {
-        setMesAtual(proximoMes);
-      }
+      // Permitir navegar para meses futuros
+      setMesAtual(proximoMes);
     }
+  };
+
+  const voltarParaMesAtual = () => {
+    setMesAtual(new Date());
   };
 
   // Atualizar transações quando mudar o mês
@@ -318,7 +348,30 @@ export function AbaFinancas({ corDestaque }: AbaFinancasProps) {
     const novoMesAno = format(mesAtual, 'yyyy-MM');
     const mesExistente = historicoMensal.find(m => m.mesAno === novoMesAno);
     setTransacoes(mesExistente ? mesExistente.transacoes : []);
+    setFormTransacao(prev => ({ ...prev, mesAno: novoMesAno }));
   }, [mesAtual, historicoMensal]);
+
+  // Gerar lista de meses para o dropdown (incluindo futuros)
+  const gerarMesesDropdown = () => {
+    const meses = [];
+    const hoje = new Date();
+    
+    // Adicionar 12 meses passados
+    for (let i = 12; i >= 0; i--) {
+      const mes = subMonths(hoje, i);
+      meses.push(format(mes, 'yyyy-MM'));
+    }
+    
+    // Adicionar 12 meses futuros
+    for (let i = 1; i <= 12; i++) {
+      const mes = addMonths(hoje, i);
+      meses.push(format(mes, 'yyyy-MM'));
+    }
+    
+    return meses;
+  };
+
+  const mesesDropdown = gerarMesesDropdown();
 
   return (
     <div className="space-y-6">
@@ -334,8 +387,8 @@ export function AbaFinancas({ corDestaque }: AbaFinancasProps) {
             <ChevronLeft className="w-4 h-4" />
           </Button>
           
-          <div className="text-center">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+          <div className="text-center flex-1">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white capitalize">
               {format(mesAtual, 'MMMM yyyy', { locale: ptBR })}
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -348,11 +401,24 @@ export function AbaFinancas({ corDestaque }: AbaFinancasProps) {
             variant="outline"
             size="sm"
             className="border-gray-200 dark:border-gray-700"
-            disabled={format(addMonths(mesAtual, 1), 'yyyy-MM') > format(new Date(), 'yyyy-MM')}
           >
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
+
+        {/* Botão voltar para mês atual */}
+        {format(mesAtual, 'yyyy-MM') !== format(new Date(), 'yyyy-MM') && (
+          <div className="mt-3 text-center">
+            <Button
+              onClick={voltarParaMesAtual}
+              variant="outline"
+              size="sm"
+              className="text-xs"
+            >
+              Voltar para mês atual
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Cards de resumo */}
@@ -670,12 +736,36 @@ export function AbaFinancas({ corDestaque }: AbaFinancasProps) {
             Nova {tipoTransacao === 'receita' ? 'Receita' : 'Despesa'}
           </h3>
 
+          {/* Alerta de validação */}
+          {Object.keys(errosCampos).length > 0 && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-red-600 dark:text-red-400">
+                <p className="font-medium mb-1">Preencha os campos obrigatórios:</p>
+                <ul className="list-disc list-inside">
+                  {Object.values(errosCampos).map((erro, index) => (
+                    <li key={index}>{erro}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
           <div>
-            <label className="text-gray-600 dark:text-gray-400 text-sm mb-1 block">Categoria</label>
+            <label className="text-gray-600 dark:text-gray-400 text-sm mb-1 block">
+              Categoria <span className="text-red-500">*</span>
+            </label>
             <select
               value={formTransacao.categoria}
-              onChange={(e) => setFormTransacao({ ...formTransacao, categoria: e.target.value })}
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-3 py-2"
+              onChange={(e) => {
+                setFormTransacao({ ...formTransacao, categoria: e.target.value });
+                if (errosCampos.categoria) {
+                  setErrosCampos({ ...errosCampos, categoria: '' });
+                }
+              }}
+              className={`w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-3 py-2 ${
+                errosCampos.categoria ? 'border-red-500' : ''
+              }`}
             >
               <option value="">Selecione uma categoria</option>
               {(tipoTransacao === 'receita' ? categoriasReceita : categoriasDespesa).map(cat => (
@@ -685,35 +775,70 @@ export function AbaFinancas({ corDestaque }: AbaFinancasProps) {
           </div>
 
           <div>
-            <label className="text-gray-600 dark:text-gray-400 text-sm mb-1 block">Valor (R$)</label>
+            <label className="text-gray-600 dark:text-gray-400 text-sm mb-1 block">
+              Valor (R$) <span className="text-red-500">*</span>
+            </label>
             <Input
               type="number"
               step="0.01"
               value={formTransacao.valor}
-              onChange={(e) => setFormTransacao({ ...formTransacao, valor: e.target.value })}
+              onChange={(e) => {
+                setFormTransacao({ ...formTransacao, valor: e.target.value });
+                if (errosCampos.valor) {
+                  setErrosCampos({ ...errosCampos, valor: '' });
+                }
+              }}
               placeholder="0,00"
-              className="bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
+              className={`bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white ${
+                errosCampos.valor ? 'border-red-500' : ''
+              }`}
             />
           </div>
 
           <div>
-            <label className="text-gray-600 dark:text-gray-400 text-sm mb-1 block">Descrição</label>
+            <label className="text-gray-600 dark:text-gray-400 text-sm mb-1 block">
+              Descrição <span className="text-red-500">*</span>
+            </label>
             <Input
               value={formTransacao.descricao}
-              onChange={(e) => setFormTransacao({ ...formTransacao, descricao: e.target.value })}
+              onChange={(e) => {
+                setFormTransacao({ ...formTransacao, descricao: e.target.value });
+                if (errosCampos.descricao) {
+                  setErrosCampos({ ...errosCampos, descricao: '' });
+                }
+              }}
               placeholder="Ex: Supermercado, Salário..."
-              className="bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
+              className={`bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white ${
+                errosCampos.descricao ? 'border-red-500' : ''
+              }`}
             />
           </div>
 
           <div>
-            <label className="text-gray-600 dark:text-gray-400 text-sm mb-1 block">Data</label>
-            <Input
-              type="date"
-              value={formTransacao.data}
-              onChange={(e) => setFormTransacao({ ...formTransacao, data: e.target.value })}
-              className="bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white"
-            />
+            <label className="text-gray-600 dark:text-gray-400 text-sm mb-1 block">
+              Mês <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formTransacao.mesAno}
+              onChange={(e) => {
+                setFormTransacao({ ...formTransacao, mesAno: e.target.value });
+                if (errosCampos.mesAno) {
+                  setErrosCampos({ ...errosCampos, mesAno: '' });
+                }
+              }}
+              className={`w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-3 py-2 ${
+                errosCampos.mesAno ? 'border-red-500' : ''
+              }`}
+            >
+              {mesesDropdown.map(mesAno => {
+                const mesNome = format(new Date(mesAno + '-01'), 'MMMM yyyy', { locale: ptBR });
+                return (
+                  <option key={mesAno} value={mesAno}>
+                    {mesNome}
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
           <div className="flex gap-2 pt-2">
@@ -727,11 +852,12 @@ export function AbaFinancas({ corDestaque }: AbaFinancasProps) {
             <Button
               onClick={() => {
                 setMostrarFormulario(false);
+                setErrosCampos({});
                 setFormTransacao({
                   categoria: '',
                   valor: '',
                   descricao: '',
-                  data: format(new Date(), 'yyyy-MM-dd'),
+                  mesAno: mesAnoAtual,
                 });
               }}
               variant="outline"
@@ -776,7 +902,7 @@ export function AbaFinancas({ corDestaque }: AbaFinancasProps) {
                       <span className="text-xs text-gray-500 dark:text-gray-400">{transacao.categoria}</span>
                       <span className="text-xs text-gray-400 dark:text-gray-500">•</span>
                       <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {format(transacao.data, "d 'de' MMM", { locale: ptBR })}
+                        {format(transacao.data, "MMM/yyyy", { locale: ptBR })}
                       </span>
                     </div>
                   </div>
