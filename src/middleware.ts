@@ -1,10 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
-export async function middleware(req: NextRequest) {
+export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
-    request: req,
+    request,
   });
 
   const supabase = createServerClient(
@@ -13,12 +12,14 @@ export async function middleware(req: NextRequest) {
     {
       cookies: {
         getAll() {
-          return req.cookies.getAll();
+          return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => req.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value, options }) =>
+            request.cookies.set(name, value)
+          );
           supabaseResponse = NextResponse.next({
-            request: req,
+            request,
           });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
@@ -34,22 +35,18 @@ export async function middleware(req: NextRequest) {
 
   // Rotas públicas
   const rotasPublicas = ['/login', '/pricing'];
-  const rotaAtual = req.nextUrl.pathname;
+  const rotaAtual = request.nextUrl.pathname;
 
   if (!user && !rotasPublicas.includes(rotaAtual)) {
-    const redirectUrl = NextResponse.redirect(new URL('/login', req.url));
-    supabaseResponse.cookies.getAll().forEach(cookie => {
-      redirectUrl.cookies.set(cookie.name, cookie.value, cookie);
-    });
-    return redirectUrl;
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
   }
 
   if (user && rotaAtual === '/login') {
-    const redirectUrl = NextResponse.redirect(new URL('/', req.url));
-    supabaseResponse.cookies.getAll().forEach(cookie => {
-      redirectUrl.cookies.set(cookie.name, cookie.value, cookie);
-    });
-    return redirectUrl;
+    const url = request.nextUrl.clone();
+    url.pathname = '/';
+    return NextResponse.redirect(url);
   }
 
   return supabaseResponse;
